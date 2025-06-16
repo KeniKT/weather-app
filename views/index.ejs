@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Weekly Weather Forecast</title>
+    <link rel="stylesheet" href="/style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <h1>🌤️ Weekly Weather Forecast</h1>
+        
+        <div class="location-buttons">
+            <button type="button" id="currentLocationBtn" class="location-btn">
+                📍 Use Current Location
+            </button>
+        </div>
+
+        <div class="divider">
+            <span>or</span>
+        </div>
+
+        <form action="/weather" method="POST" class="search-form">
+            <div class="input-group">
+                <input type="text" name="city" placeholder="Enter city name (e.g., London, New York)" required />
+                <button type="submit">🔍 Search City</button>
+            </div>
+        </form>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Getting your location...</p>
+        </div>
+
+        <% if (weather) { %>
+            <div class="weather-result">
+                <h2 class="location">📍 <%= weather.location %></h2>
+                
+                <div class="weather-grid">
+                    <% weather.weekly.forEach(day => { %>
+                        <div class="weather-card">
+                            <div class="day-header">
+                                <h3><%= day.day %></h3>
+                                <p class="date"><%= day.date %></p>
+                            </div>
+                            
+                            <div class="weather-icon">
+                                <%= day.icon %>
+                            </div>
+                            
+                            <div class="temperature">
+                                <span class="max-temp"><%= day.maxTemp %>°</span>
+                                <span class="min-temp"><%= day.minTemp %>°</span>
+                            </div>
+                            
+                            <div class="weather-details">
+                                <div class="detail">
+                                    <span class="icon">🌧️</span>
+                                    <span><%= day.precipitation %>mm</span>
+                                </div>
+                                <div class="detail">
+                                    <span class="icon">💨</span>
+                                    <span><%= day.windSpeed %>km/h</span>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            </div>
+        <% } %>
+
+        <% if (error) { %>
+            <div class="error">
+                <p>❌ <%= error %></p>
+            </div>
+        <% } %>
+        
+        <% if (!weather && !error) { %>
+            <div class="welcome">
+                <p>🌍 Click "Use Current Location" or enter a city name to see the 7-day weather forecast</p>
+            </div>
+        <% } %>
+    </div>
+
+    <script>
+        document.getElementById('currentLocationBtn').addEventListener('click', getCurrentLocationWeather);
+        
+        function getCurrentLocationWeather() {
+            const loadingDiv = document.getElementById('loading');
+            const currentLocationBtn = document.getElementById('currentLocationBtn');
+            
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser');
+                return;
+            }
+            
+            // Show loading
+            loadingDiv.style.display = 'flex';
+            currentLocationBtn.disabled = true;
+            currentLocationBtn.textContent = '📍 Getting Location...';
+            
+            navigator.geolocation.getCurrentPosition(
+                // Success callback
+                async function(position) {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    
+                    try {
+                        const response = await fetch('/weather-by-coords', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: `lat=${lat}&lon=${lon}`
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            // Reload the page to show new weather data
+                            window.location.reload();
+                        } else {
+                            showError(data.error);
+                        }
+                    } catch (error) {
+                        showError('Failed to fetch weather data');
+                    }
+                    
+                    // Hide loading
+                    loadingDiv.style.display = 'none';
+                    currentLocationBtn.disabled = false;
+                    currentLocationBtn.textContent = '📍 Use Current Location';
+                },
+                // Error callback
+                function(error) {
+                    let errorMessage = 'Unable to get your location: ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage += 'Location access denied by user.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage += 'Location information unavailable.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage += 'Location request timed out.';
+                            break;
+                        default:
+                            errorMessage += 'Unknown error occurred.';
+                            break;
+                    }
+                    
+                    showError(errorMessage);
+                    loadingDiv.style.display = 'none';
+                    currentLocationBtn.disabled = false;
+                    currentLocationBtn.textContent = '📍 Use Current Location';
+                },
+                // Options
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 300000 // 5 minutes
+                }
+            );
+        }
+        
+        function showError(message) {
+            hideError(); // Remove existing error if any
+            const errorHTML = `<div class="error"><p>❌ ${message}</p></div>`;
+            const searchForm = document.querySelector('.search-form');
+            searchForm.insertAdjacentHTML('afterend', errorHTML);
+        }
+        
+        function hideError() {
+            const existingError = document.querySelector('.error');
+            if (existingError) {
+                existingError.remove();
+            }
+        }
+    </script>
+</body>
+</html>
